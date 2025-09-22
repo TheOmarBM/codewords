@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Codewords Game</title>
+<style>
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; text-align: center; background: #f8f8f8; margin: 0; }
+  header { padding: 14px 10px 6px; }
+  #board, #pattern {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr); /* always 5 columns */
+    gap: 6px;
+    justify-content: center;
+    margin: 10px auto 16px;
+    max-width: min(95vw, 800px);
+    padding: 0 10px;
+  }
+  .card {
+    border: 2px solid #333;
+    aspect-ratio: 4 / 3;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    background: white;
+    user-select: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.06);
+    font-size: clamp(10px, 2.6vw, 18px);
+    letter-spacing: .4px;
+  }
+  .revealed.red    { background: #e74c3c; color: #fff; }
+  .revealed.blue   { background: #3b82f6; color: #fff; }
+  .revealed.neutral{ background: #d9d9d9; }
+  .revealed.black  { background: #111; color: #fff; }
+  #controls { margin: 8px 0 4px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  #message { font-size: 1.05em; margin: 6px 10px 10px; min-height: 1.4em; }
+  #hud { margin: 6px 10px 0; font-size: 0.98em; line-height: 1.5; }
+  button { margin: 3px; padding: 8px 12px; border-radius: 10px; border: 1px solid #ccc; background: #fff; cursor: pointer; }
+  button:hover { background: #f1f1f1; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-weight: 700; color: #fff; }
+  .pill.red { background: #e74c3c; }
+  .pill.blue { background: #3b82f6; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1 style="margin:0">Codewords</h1>
+  <div id="controls">
+    <button id="patternBtn" onclick="togglePattern()">Show/Hide Pattern</button>
+    <button onclick="newGame()">Restart</button>
+    <button id="langBtn" onclick="switchLang()">Switch to Italian</button>
+  </div>
+</header>
+
+<div id="hud"></div>
+<div id="message"></div>
+
+<div id="board"></div>
+<div id="pattern" style="display:none;"></div>
+
+<script>
+let WORDS = [];
+let words = [];
+let pattern = {};
+let revealed = {};
+let gameOver = false;
+let currentLang = "IT";  // EN or IT
+let currentTurn = "red"; // red starts
+
+// === Large word lists (deduped at load). Keep only ASCII & 4..12 chars ===
+// English common words (≈260 unique)
+const LIST_EN = [
+"APPLE","ARMY","ARROW","AUTUMN","BABY","BACK","BAG","BAKER","BALL","BALLOON","BAND","BANK","BAR","BARN","BASE","BASKET","BATH","BATTLE","BEACH","BEAN",
+"BEAR","BEARD","BEAST","BED","BEE","BELT","BERRY","BIBLE","BICYCLE","BIRD","BIRTH","BLADE","BLANKET","BLESS","BLOCK","BLOOD","BLOSSOM","BLUE","BOARD","BOAT","BODY",
+"BONE","BOOK","BOOT","BORDER","BOTTLE","BOX","BOY","BRAIN","BRANCH","BRASS","BREAD","BREAKFAST","BRICK","BRIDGE","BROTHER","BRUSH","BUCKET","BUILDING","BULB","BULL",
+"BUS","BUSH","BUTTER","BUTTON","CABLE","CAKE","CAMP","CANAL","CANDLE","CANDY","CAP","CAPE","CAPTAIN","CAR","CARD","CARPET","CARRIAGE","CARROT","CASTLE","CAT",
+"CATTLE","CAUSE","CAVE","CHAIN","CHAIR","CHALK","CHANCE","CHEESE","CHEST","CHICKEN","CHILD","CHIMNEY","CHURCH","CIRCLE","CITY","CLASS","CLOCK","CLOUD","COACH","COAL",
+"COAST","COAT","COFFEE","COIN","COLD","COLOR","CONE","COPPER","CORN","COTTON","COW","CRADLE","CRAFT","CRANE","CROWD","CROWN","CRYSTAL","CUP","CURTAIN","CUSHION",
+"DANCE","DANGER","DARK","DATE","DAUGHTER","DAY","DEER","DESERT","DESK","DIAMOND","DICE","DINNER","DOCK","DOCTOR","DOG","DOOR","DREAM","DRESS","DRINK","DRIVER",
+"DRUM","DUCK","EAGLE","EAR","EARTH","EAST","EGG","ELBOW","ENGINE","EYE","FARM","FARMER","FEATHER","FEET","FIELD","FIGHTER","FIGURE","FINGER","FIRE","FISH",
+"FLAG","FLAME","FLOOD","FLOOR","FLOWER","FLUTE","FOAM","FOG","FOOD","FOOT","FOREST","FORK","FORKLIFT","FORTUNE","FOSSIL","FRAME","FRIEND","FROG","FRUIT","FURNACE",
+"GARDEN","GATE","GHOST","GIANT","GIFT","GIRL","GLASS","GLOVE","GOAT","GOLD","GRASS","GRAVE","GREEN","GROUND","GROUP","GUEST","GUIDE","GUITAR","HAMMER","HAND",
+"HARBOR","HAT","HEAD","HEART","HELMET","HILL","HIP","HONEY","HOOK","HOPE","HORSE","HOSPITAL","HOUSE","HUNT","ICE","ICICLE","IDEA","INSECT","IRON","ISLAND",
+"JACKET","JAR","JEWEL","JOURNEY","JUDGE","JUICE","KETTLE","KEY","KING","KITCHEN","KITE","KITTEN","KNIFE","KNIGHT","LADDER","LAKE","LAMB","LAMP","LAND","LEAF",
+"LEATHER","LEG","LEMON","LETTER","LIBRARY","LID","LIGHT","LION","LIP","LOCK","LOAF","LOVE","MACHINE","MAGIC","MAGNET","MAP","MARK","MARKET","MASK","MATCH",
+"MEAL","MEAT","MEDICINE","METAL","MILK","MILL","MIND","MINE","MINUTE","MIRROR","MONEY","MONKEY","MONTH","MOON","MORNING","MOTHER","MOUNT","MOUSE","MOUTH","MOVIE",
+"MUD","MUSIC","NAIL","NAME","NEEDLE","NERD","NEST","NET","NIGHT","NOSE","NURSE","NUT","OCEAN","OIL","ORANGE","ORDER","PAINT","PALACE","PAN","PAPER",
+"PARROT","PARK","PART","PARTY","PEACE","PEAR","PEN","PENCIL","PEPPER","PET","PHOTO","PIANO","PICKLE","PICTURE","PILLOW","PINE","PIPE","PIRATE","PLACE","PLANE",
+"PLANET","PLANT","PLATE","PLUG","POCKET","POINT","POLICE","POND","POOL","PORT","POST","POT","POTATO","POWDER","POWER","PRINCE","PRISON","PRIZE","PUMPKIN","PUPIL",
+"PURSE","QUEEN","RABBIT","RACE","RACKET","RADIO","RAIN","RANCH","RING","RIVER","ROAD","ROBOT","ROCK","ROOF","ROOM","ROOT","ROPE","ROSE","RULE","SACK",
+"SADDLE","SAIL","SALAD","SALT","SAND","SCALE","SCHOOL","SCISSORS","SCOUT","SCREEN","SEA","SEAL","SEAT","SEED","SHEEP","SHEET","SHELF","SHIP","SHOE","SHOP",
+"SHOVEL","SIDE","SIGN","SILK","SILVER","SISTER","SKIN","SKIRT","SKY","SLEEP","SMILE","SMOKE","SNAIL","SNAKE","SNOW","SOAP","SOCK","SOLDIER","SON","SONG",
+"SOUP","SOUND","SPACE","SPADE","SPARK","SPEAR","SPOON","SPORT","SPRING","SQUARE","STAGE","STAIR","STAMP","STAR","STATION","STEAM","STEEL","STONE","STOOL","STORM",
+"STOVE","STRAW","STREET","STRING","STRIPE","STUDENT","STUDY","SUGAR","SUMMER","SUN","TABLE","TAIL","TANK","TAPE","TARGET","TEACHER","TEAM","TEA","TEETH","TEMPLE",
+"TENT","THEATRE","THREAD","THROAT","THUMB","TICKET","TIGER","TIME","TIN","TITLE","TOAST","TOE","TONGUE","TOOL","TOOTH","TOWER","TOY","TRAIN","TRAY","TREE",
+"TRIANGLE","TRUCK","TRUMPET","TUBE","TUNNEL","TURTLE","UMBRELLA","UNIT","VALLEY","VAN","VASE","VEIL","VENT","VILLAGE","VIOLIN","VOICE","WAGON","WALL","WALNUT","WAR",
+"WASHER","WATER","WAVE","WAX","WAY","WHEEL","WHIP","WHISTLE","WIFE","WIND","WINDOW","WINE","WINTER","WIRE","WISH","WOLF","WOMAN","WOOD","WORLD","WORM",
+"YARD","YEAR","YOUTH","ZEBRA"
+];
+
+// Italian common words (≈260 unique, ASCII only)
+const LIST_IT = [
+"ALBERO","ALBERGO","ANELLO","ANIMA","ANNO","ANELLI","ANATRA","APPESO","ARGENTO","ARIA","ARTE","ASINO","AUTUNNO","AVVOCATO",
+"BAMBINO","BANDIERA","BARCA","BATTELLO","BICCHIERE","BICI","BIBBIA","BILANCIA","BIRRA","BISTECCA","BOSCO","BOTTIGLIA","BRACCIO","BRACCIALE","BRACCIOLO","BRUGHIERA",
+"CACCIA","CACCIARE","CADDY","CADO","CAFFE","CALA","CALCIO","CALDO","CALICE","CALZA","CANE","CARAMELLA","CARBONE","CARCERE","CAROTA","CARTA","CARTE","CARTINA","CASA","CASCATA",
+"CASE","CASERMA","CASINO","CASSA","CASTELLO","CAVALLO","CAVOLO","CAVO","CENA","CENTRO","CERCHIO","CERVELLO","CHIAVE","CHIESA","CHIODO","CHITARRA","CIELO","CINEMA","CINTURA","CITTA",
+"CLASSE","COLAZIONE","COLLANA","COLLE","COLLINE","COLORE","COLTELLO","COLTURA","COMETA","COMUNE","CONIGLIO","CONO","CORDA","CORONA","CORPO","CORSA","COSTA","COSTUME","COTTONE","CUCCHIAIO",
+"CUCINA","CUCITRICE","CUORE","CURA","CURTAIN","DENTE","DESERTO","DIARIO","DIAVOLO","DIO","DIPINTO","DIRETTORE","DIVANO","DOCCIA","DOLORE","DOMANDA","DOMENICA","DONNA","DORSO","DOTTORE",
+"DRAGO","ERBA","ESAME","ESTATE","ETTORE","FAGIOLO","FALCE","FAME","FAMIGLIA","FARFALLA","FARO","FATTO","FAVA","FELPA","FEMMINA","FERRO","FESTA","FIAMMA","FICHI","FILO",
+"FINESTRE","FINESTRA","FIORE","FIUME","FOGLIA","FOGLIE","FOGLIO","FORCHETTA","FORESTA","FORMAGGIO","FORNO","FORTE","FORTUNA","FOTO","FRASE","FRATELLO","FRUTTA","FUOCO","FURGONE","GABBIA",
+"GALLINA","GAMBA","GATTO","GELATO","GESSO","GHIACCIO","GIGLIO","GIOCO","GIOIA","GIOIELLO","GIORNO","GIRAFFA","GIRO","GIUDICE","GIUNGLA","GIUNTA","GIUNTO","GIUSTO","GLORIA","GNOMO",
+"GOLA","GOLFO","GOMITO","GOMMA","GRANO","GRAPPA","GRATTACIELO","GRIGLIA","GRU","GUANTO","GUERRA","GUIDA","HOTEL","IMMAGINE","IMPERMEABILE","INDICE","INGEGNERE","INSALATA","INSEGNANTE","INVERNO",
+"ISOLA","LAGO","LAMPADE","LAMPADA","LANO","LATTE","LATTUGA","LAVA","LEONE","LETTERA","LIBRO","LINGUA","LIRA","LIRALE","LIRICA","LISCA","LISTA","LIVELLO","LUCE","LUOGO",
+"MADRE","MAESTRO","MAGIA","MAGLIA","MAGLIONE","MAIALE","MALE","MANO","MARE","MARMO","MASCHERA","MATTINA","MECCA","MEDICO","MEGLIO","MELA","MELONE","MENSA","MENTE","MERCATO",
+"MESTIERE","METALLO","METRO","MEZZA","MICIO","MILITARE","MINUTO","MIRROR","MISURA","MOBILE","MODO","MOGLIE","MOLLA","MOLTO","MONDO","MONETA","MONTE","MONTAGNA","MORA","MORNING",
+"MORTE","MOSCA","MOTO","MULINO","MURO","MUSICA","NAVE","NEMICO","NEGOZIO","NEON","NEVE","NOCE","NONNA","NONNO","NOTA","NOTTE","NUVOLA","OCCHIO","ODIO","OFFICINA",
+"OLIO","OMBRA","ONDA","OPERA","OPERAIO","ORA","ORECCHIO","OROLOGIO","ORSO","ORSACCHIOTTO","ORTO","OSSO","OSPITE","OSPEDALE","OTTO","PALLA","PALLONE","PANE","PANNA","PAPA",
+"PARCO","PAROLA","PARRUCCA","PARTE","PARTITA","PASSO","PASTA","PASTO","PATATA","PATE","PAVIMENTO","PEDALE","PELO","PENA","PENNA","PENTOLA","PEPE","PERLA","PERSONA","PESCA",
+"PESCE","PETTO","PIANO","PIANTA","PIATTO","PIEDE","PIETRA","PIGIAMA","PILA","PILLOLA","PINETA","PINO","PIOGGIA","PIPISTRELLO","PISCINA","PIUMA","PIZZA","PIAZZA","PLACCA","PLANISFERO",
+"PLASTICA","POESIA","POLLO","POLMONI","POLTRONA","POLVERE","POMODORO","PONTE","PORTE","PORTA","PORTONE","POSTA","POSTO","POTERE","PRATO","PREMIO","PRETE","PRIGIONE","PRIMA","PRINCIPE",
+"PROFETA","PROFUMO","PUB","QUADRO","QUADERNO","QUADROFOGLIO","QUERCIA","RABBIA","RAGAZZA","RAGAZZO","RAGNO","RAMO","RANA","RAPIDO","RASOIO","RATTO","RE","REGINA","REGNO","REGALO",
+"REGISTA","REGOLE","RETE","RICCHEZZA","RISO","RIVA","RIVISTA","ROBA","ROCCIA","ROSA","ROTAIA","RUBINO","SACCA","SACCO","SALA","SALE","SALONE","SALSA","SALTO","SALVAGENTE",
+"SANGUE","SANI","SANTO","SAPONE","SASSO","SCALA","SCARPA","SCENA","SCHEGGIA","SCIENZA","SCIMMIA","SCUOLA","SCUDO","SCULTURA","SEDIA","SEGA","SEGRETO","SEME","SENA","SENTIERO",
+"SERENITA","SERPENTE","SERRA","SET","SETTEMBRE","SETTIMANA","SFIDA","SIGNORE","SILENZIO","SINISTRA","SOGGIORNO","SOGNO","SOLDATO","SOLE","SOLITUDINE","SONNO","SOPRA","SORELLA","SORRISO","SOSPESO",
+"SPEGNERE","SPESA","SPEZIA","SPIAGGIA","SPINA","SPIRALE","SPOSA","SPORT","SPUMA","SQUADRA","STADIO","STELLA","STIVALE","STORIA","STRADA","STRUMENTO","STUFA","STUDENTE","STUFA","SUCCO",
+"SUOLA","SUONO","TACCO","TAGLIO","TALPA","TAPPETO","TASTO","TAVOLO","TEATRO","TEGLIA","TEMPO","TENDA","TERRA","TERRENO","TESCHIO","TESORO","TESTA","TETTO","TIGRE","TIMONE",
+"TIPO","TITOLO","TOGLIERE","TOMBA","TONNO","TORCIA","TORRE","TRADIZIONE","TRAM","TRAMONTO","TRAVE","TRAVERSA","TRENO","TRENO","TRIPLA","TRONO","TROTA","TUBO","UCCELLO","UFFICIO",
+"UNGHIA","UNIONE","UOMO","URLO","USCIO","USCITA","VACCHE","VALIGIA","VALLE","VALUTA","VAPORE","VASCA","VASETTO","VASO","VEICOLO","VELA","VELENO","VELIERO","VENA","VENTO",
+"VERDE","VERO","VESTITO","VETRO","VIAGGIO","VICINO","VIGILE","VILLA","VINO","VIOLA","VIOLETTA","VIOLINO","VISO","VISITA","VITA","VITE","VOCE","VOLANTE","VOLPE","VOLTO"
+];
+
+// === texts ===
+const TEXTS = {
+  EN: {
+    red: "Red",
+    blue: "Blue",
+    neutral: "Neutral",
+    black: "Black",
+    turn: "Turn:",
+    remaining: "Remaining",
+    gameover_black: "💀 Black card clicked! Game over.",
+    win_red: "🏆 Red team wins!",
+    win_blue: "🏆 Blue team wins!",
+    again: "again",
+    now: "now"
+  },
+  IT: {
+    red: "Rosso",
+    blue: "Blu",
+    neutral: "Neutro",
+    black: "Nero",
+    turn: "Turno:",
+    remaining: "Rimasti",
+    gameover_black: "💀 Carta nera! Partita finita.",
+    win_red: "🏆 Vince la squadra rossa!",
+    win_blue: "🏆 Vince la squadra blu!",
+    again: "ancora",
+    now: "ora"
+  }
+};
+
+function sanitizeList(list) {
+  // Ensure ASCII only and length 4..12, uppercase; remove duplicates.
+  const ascii = list
+    .map(w => (w || "").toString().toUpperCase().replace(/[^A-Z]/g, ""))
+    .filter(w => w.length >= 4 && w.length <= 12);
+  return Array.from(new Set(ascii));
+}
+
+function loadWords() {
+  let raw = (currentLang === "EN") ? LIST_EN : LIST_IT;
+  WORDS = sanitizeList(raw);
+  newGame();
+}
+
+function newGame() {
+  if (WORDS.length === 0) return;
+  gameOver = false;
+  currentTurn = "red"; // red starts
+  document.getElementById("message").innerText = "";
+
+  words = [];
+  let pool = WORDS.slice();
+  for (let i = 0; i < 25; i++) {
+    const idx = Math.floor(Math.random() * pool.length);
+    words.push(pool.splice(idx, 1)[0]);
+  }
+
+  let roles = [
+    "red","red","red","red","red","red","red","red","red",
+    "blue","blue","blue","blue","blue","blue","blue","blue",
+    "neutral","neutral","neutral","neutral","neutral","neutral","neutral",
+    "black"
+  ];
+  shuffle(roles);
+  pattern = {};
+  revealed = {};
+  words.forEach((w,i) => { pattern[w] = roles[i]; revealed[w] = false; });
+
+  drawBoard();
+  drawPattern();
+  updateHUD();
+}
+
+function drawBoard() {
+  const board = document.getElementById("board");
+  board.innerHTML = "";
+  words.forEach(w => {
+    const div = document.createElement("div");
+    div.className = "card";
+    div.innerText = w;
+    div.onclick = () => reveal(w, div);
+    board.appendChild(div);
+  });
+}
+
+function drawPattern() {
+  const pat = document.getElementById("pattern");
+  pat.innerHTML = "";
+  words.forEach(w => {
+    const div = document.createElement("div");
+    div.className = "card revealed " + pattern[w];
+    div.innerText = w;
+    pat.appendChild(div);
+  });
+}
+
+function reveal(w, div) {
+  if (gameOver || revealed[w]) return;
+  revealed[w] = true;
+  div.classList.add("revealed", pattern[w]);
+
+  const t = TEXTS[currentLang];
+  let msg = "";
+
+  if (pattern[w] === "black") {
+    endGame(t.gameover_black);
+    return;
+  } else if (pattern[w] === currentTurn) {
+    msg = `${t[pattern[w]]} card, ${t.turn} ${t[currentTurn]} ${t.again}.`;
+  } else if (pattern[w] === "neutral") {
+    currentTurn = (currentTurn === "red") ? "blue" : "red";
+    msg = `${t.neutral}, ${t.turn} ${t[currentTurn]}`;
+  } else {
+    currentTurn = (currentTurn === "red") ? "blue" : "red";
+    msg = `${t[pattern[w]]} card, ${t.now} ${t.turn} ${t[currentTurn]}`;
+  }
+
+  updateHUD(msg);
+  checkWin();
+}
+
+function checkWin() {
+  const redsLeft = words.filter(w => pattern[w] === "red" && !revealed[w]).length;
+  const bluesLeft = words.filter(w => pattern[w] === "blue" && !revealed[w]).length;
+  const t = TEXTS[currentLang];
+  if (redsLeft === 0) { endGame(t.win_red); return; }
+  if (bluesLeft === 0) { endGame(t.win_blue); return; }
+}
+
+function endGame(msg) {
+  gameOver = true;
+  document.getElementById("message").innerText = msg;
+  document.querySelectorAll("#board .card").forEach(div => {
+    const word = div.innerText;
+    div.classList.add("revealed", pattern[word]);
+  });
+  updateHUD();
+}
+
+function updateHUD(msg="") {
+  const t = TEXTS[currentLang];
+  const redsLeft = words.filter(w => pattern[w] === "red" && !revealed[w]).length;
+  const bluesLeft = words.filter(w => pattern[w] === "blue" && !revealed[w]).length;
+
+  const turnPill = `<span class="pill ${currentTurn}">${t[currentTurn]}</span>`;
+  let hudText = `
+    <strong>${t.red}</strong> ${t.remaining}: ${redsLeft} &nbsp;&nbsp;
+    <strong>${t.blue}</strong> ${t.remaining}: ${bluesLeft} <br>
+    ${t.turn} ${turnPill}
+  `;
+  if (msg) hudText += `<br>${msg}`;
+  document.getElementById("hud").innerHTML = hudText;
+}
+
+function togglePattern() {
+  const pat = document.getElementById("pattern");
+  pat.style.display = (pat.style.display === "none") ? "grid" : "none";
+  // Update button label per language
+  const show = (pat.style.display === "grid");
+  const btn = document.getElementById("patternBtn");
+  if (currentLang === "EN") btn.textContent = show ? "Hide Pattern" : "Show Pattern";
+  else btn.textContent = show ? "Nascondi Pattern" : "Mostra Pattern";
+}
+
+function switchLang() {
+  if (currentLang === "EN") {
+    currentLang = "IT";
+    document.getElementById("langBtn").innerText = "Switch to English";
+  } else {
+    currentLang = "EN";
+    document.getElementById("langBtn").innerText = "Switch to Italian";
+  }
+  // also localize the pattern toggle label
+  const pat = document.getElementById("pattern");
+  const show = (pat.style.display === "grid");
+  const btn = document.getElementById("patternBtn");
+  if (currentLang === "EN") btn.textContent = show ? "Hide Pattern" : "Show Pattern";
+  else btn.textContent = show ? "Nascondi Pattern" : "Mostra Pattern";
+
+  loadWords();
+}
+
+function shuffle(arr) {
+  for (let i = arr.length-1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i+1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+}
+
+window.onload = loadWords;
+</script>
+</body>
+</html>
