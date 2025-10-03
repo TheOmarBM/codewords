@@ -46,41 +46,6 @@
   .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-weight: 700; color: #fff; }
   .pill.red { background: #e74c3c; }
   .pill.blue { background: #3b82f6; }
-
-  /* Make pattern btn more prominent and less likely to misclick */
-  #patternBtn {
-    background: #ffe99f;
-    border: 2px solid #e1b800;
-    font-weight: 700;
-    color: #7c6700;
-    font-size: 1.03em;
-    min-width: 140px;
-    min-height: 40px;
-    box-shadow: 0 2px 10px -5px #e1b80090;
-    transition: background 0.16s, box-shadow 0.16s;
-  }
-  #patternBtn:hover, #patternBtn:focus {
-    background: #fff5cc;
-    box-shadow: 0 4px 16px -4px #e1b800a0;
-    outline: 2px solid #e1b80080;
-  }
-  /* Add spacing for new turn button */
-  #turnBtn {
-    background: #e3e3fd;
-    border: 2px solid #4d64e1;
-    color: #2b307e;
-    font-weight: 700;
-    font-size: 1.03em;
-    min-width: 120px;
-    min-height: 40px;
-    box-shadow: 0 2px 10px -5px #4d64e190;
-    transition: background 0.16s, box-shadow 0.16s;
-  }
-  #turnBtn:hover, #turnBtn:focus {
-    background: #f0f2ff;
-    box-shadow: 0 4px 16px -4px #4d64e1a0;
-    outline: 2px solid #4d64e180;
-  }
 </style>
 </head>
 <body>
@@ -88,9 +53,8 @@
 <header>
   <h1 style="margin:0">Codewords</h1>
   <div id="controls">
-    <button id="patternBtn" onclick="togglePattern()" aria-label="Show or hide the pattern (spymaster view)">👁 Show/Hide Pattern</button>
-    <button id="turnBtn" onclick="changeTurn()" aria-label="Change team turn">🔄 Change Turn</button>
-    <button onclick="newGame()" id="restartBtn">Restart</button>
+    <button id="patternBtn" onclick="togglePattern()">Show/Hide Pattern</button>
+    <button onclick="newGame()">Restart</button>
     <button id="langBtn" onclick="switchLang()">Switch to English</button>
   </div>
 </header>
@@ -185,8 +149,7 @@ const TEXTS = {
     win_red: "🏆 Red team wins!",
     win_blue: "🏆 Blue team wins!",
     again: "again",
-    now: "now",
-    change_turn: "Change Turn"
+    now: "now"
   },
   IT: {
     red: "Rosso",
@@ -199,15 +162,14 @@ const TEXTS = {
     win_red: "🏆 Vince la squadra rossa!",
     win_blue: "🏆 Vince la squadra blu!",
     again: "ancora",
-    now: "ora",
-    change_turn: "Cambia turno"
+    now: "ora"
   }
 };
 
 function sanitizeList(list) {
   // Ensure ASCII only and length 4..12, uppercase; remove duplicates.
   const ascii = list
-    .map(w => (w || "").toString().toUpperCase().replace(/[^A-Z]/g, "")
+    .map(w => (w || "").toString().toUpperCase().replace(/[^A-Z]/g, ""))
     .filter(w => w.length >= 4 && w.length <= 12);
   return Array.from(new Set(ascii));
 }
@@ -245,7 +207,6 @@ function newGame() {
   drawBoard();
   drawPattern();
   updateHUD();
-  localizeButtons();
 }
 
 function drawBoard() {
@@ -334,42 +295,27 @@ function togglePattern() {
   pat.style.display = (pat.style.display === "none") ? "grid" : "none";
   // Update button label per language
   const show = (pat.style.display === "grid");
-  localizeButtons();
+  const btn = document.getElementById("patternBtn");
+  if (currentLang === "EN") btn.textContent = show ? "Hide Pattern" : "Show Pattern";
+  else btn.textContent = show ? "Nascondi Pattern" : "Mostra Pattern";
 }
 
 function switchLang() {
   if (currentLang === "EN") {
     currentLang = "IT";
+    document.getElementById("langBtn").innerText = "Switch to English";
   } else {
     currentLang = "EN";
+    document.getElementById("langBtn").innerText = "Switch to Italian";
   }
-  loadWords();
-  localizeButtons();
-}
-
-function changeTurn() {
-  if (gameOver) return;
-  currentTurn = (currentTurn === "red") ? "blue" : "red";
-  updateHUD();
-}
-
-function localizeButtons() {
-  const t = TEXTS[currentLang];
-  // Pattern button label
+  // also localize the pattern toggle label
   const pat = document.getElementById("pattern");
   const show = (pat.style.display === "grid");
-  const patternBtn = document.getElementById("patternBtn");
-  if (currentLang === "EN") patternBtn.textContent = show ? "👁 Hide Pattern" : "👁 Show Pattern";
-  else patternBtn.textContent = show ? "👁 Nascondi Pattern" : "👁 Mostra Pattern";
-  // Lang button
-  const langBtn = document.getElementById("langBtn");
-  langBtn.innerText = (currentLang === "EN") ? "Switch to Italian" : "Switch to English";
-  // Turn button
-  const turnBtn = document.getElementById("turnBtn");
-  turnBtn.innerText = t.change_turn;
-  // Restart button
-  const restartBtn = document.getElementById("restartBtn");
-  restartBtn.innerText = (currentLang === "EN") ? "Restart" : "Ricomincia";
+  const btn = document.getElementById("patternBtn");
+  if (currentLang === "EN") btn.textContent = show ? "Hide Pattern" : "Show Pattern";
+  else btn.textContent = show ? "Nascondi Pattern" : "Mostra Pattern";
+
+  loadWords();
 }
 
 function shuffle(arr) {
@@ -379,10 +325,7 @@ function shuffle(arr) {
   }
 }
 
-window.onload = function() {
-  loadWords();
-  localizeButtons();
-};
+window.onload = loadWords;
 </script>
 </body>
 </html>
